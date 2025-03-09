@@ -1,0 +1,10 @@
+E:\Csharp projects\CatChat\CatChat\bin\Debug\CatChat.exe.config
+E:\Csharp projects\CatChat\CatChat\bin\Debug\CatChat.exe
+E:\Csharp projects\CatChat\CatChat\bin\Debug\CatChat.pdb
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.csproj.AssemblyReference.cache
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.fMain.resources
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.Properties.Resources.resources
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.csproj.GenerateResource.cache
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.csproj.CoreCompileInputs.cache
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.exe
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.pdb
