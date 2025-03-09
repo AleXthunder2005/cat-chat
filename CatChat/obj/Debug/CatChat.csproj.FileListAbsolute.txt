@@ -8,3 +8,4 @@ E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.csproj.GenerateResource.cac
 E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.csproj.CoreCompileInputs.cache
 E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.exe
 E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.pdb
+E:\Csharp projects\CatChat\CatChat\obj\Debug\CatChat.fAuthentificator.resources
