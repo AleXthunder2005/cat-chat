@@ -5,10 +5,13 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static CatChat.ChatMessage;
+using static CatChat.Node;
 
 namespace CatChat
 {
@@ -21,20 +24,23 @@ namespace CatChat
 
         private enum LogMessageType
         {
-            Connected,
-            Disconnected,
-            NodeDetected,
-            NodeDisconnected,
-            MessageSent,
-            MessageReceived
+            Connected,        //мы подключились
+            Disconnected,     //мы отключились
+            NodeDetected,     //обнаружен узел
+            NodeDisconnected, //узел ушел в закат
+            MessageSent,      //мы отправили сообщение
+            MessageReceived,  //мы получили сообщение
+            ConnectionNotice,  //мы послали уведомление что подключились
+            DisconnectionNotice  //мы послали уведомление что отключились
         }
         string NEW_LINE = Environment.NewLine;
+        const int DEFAULT_UDP_PORT = 11111;
+        const int DEFAULT_TCP_PORT = 22222;
 
         //fields
         private string m_userName = null;
         private IPAddress m_IP = null;
 
-        private string m_log;
 
         //properties
         public string UserName
@@ -47,8 +53,6 @@ namespace CatChat
             get { return m_IP; }
             private set { m_IP = value; }
         }
-
-
 
         //model
         private void CloseApplication() 
@@ -84,11 +88,37 @@ namespace CatChat
                 case LogMessageType.MessageReceived:
                     tbLog.Text += $"{currTime.ToString()}: message from {UserName}({UserIP}) received{NEW_LINE}";
                     break;
+                case LogMessageType.ConnectionNotice:
+                    tbLog.Text += $"{currTime.ToString()}: connection notice from {UserName}({UserIP}) sent{NEW_LINE}";
+                    break;
+                case LogMessageType.DisconnectionNotice:
+                    tbLog.Text += $"{currTime.ToString()}: disconnection notice from {UserName}({UserIP}) sent{NEW_LINE}";
+                    break;
             }
         }
-        private void DisconectChat() 
-        { 
-        
+        private void EndChat() 
+        {
+            SendUDPBroadcastPacket(LogMessageType.DisconnectionNotice);
+        }
+
+        private void StartChat() 
+        {
+            SendUDPBroadcastPacket(LogMessageType.ConnectionNotice);
+            ViewUpdate();
+        }
+
+        private void SendUDPBroadcastPacket(LogMessageType type)
+        {
+            int port = 12345;
+            using (UdpClient udpClient = new UdpClient())
+            {
+                udpClient.EnableBroadcast = true;
+                IPEndPoint broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, port);
+                ChatMessage notice = new ChatMessage(MessageType.ConnectionNotice, UserIP, UserName);
+
+                udpClient.Send(notice.Data, notice.Data.Length, broadcastEndpoint);
+            }
+            LogUpdate(type, DateTime.Now, UserIP);
         }
 
         //view
@@ -115,13 +145,15 @@ namespace CatChat
             {
                 InitializeUser(authentificator.UserName, authentificator.UserIP);
                 LogUpdate(LogMessageType.Connected, DateTime.Now, UserIP);
-                ViewUpdate();
+
+                StartChat();
+  
             }
         }
 
         private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            DisconectChat();
+            EndChat();
             LogUpdate(LogMessageType.Disconnected, DateTime.Now, UserIP);
         }
     }
