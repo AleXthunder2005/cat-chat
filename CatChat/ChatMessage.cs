@@ -16,7 +16,7 @@ namespace CatChat
         private const byte N_SIZE = 4;
 
 
-        public enum MessageType 
+        public enum MessageType
         {
             Message,             //сообщение
             NameTransfer,        //передача имени
@@ -31,6 +31,11 @@ namespace CatChat
         }
 
         private byte[] m_data;   //0 - тип сообщения, 1-4 - длина сообщения, 5-9 - ip отправителя, все остальное - сообщение
+
+        public ChatMessage()
+        { 
+
+        }
 
         public ChatMessage(MessageType type, IPAddress sender, string message = "") 
         {
