@@ -202,6 +202,7 @@ namespace CatChat
                 {
                     case MessageType.ConnectionNotice:
                         SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
+                        ViewUpdate();
                         InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
                         break;
                 }
@@ -312,8 +313,6 @@ namespace CatChat
             }
             SafeLogUpdate(LogMessageType.MessageSent, DateTime.Now, null);
         }
-
-
 
         //view
         private void ViewUpdate()

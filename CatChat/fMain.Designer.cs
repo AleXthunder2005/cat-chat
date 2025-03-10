@@ -43,13 +43,10 @@
             this.pMessageTypesetter = new System.Windows.Forms.Panel();
             this.btnSend = new System.Windows.Forms.Button();
             this.tbMessage = new System.Windows.Forms.TextBox();
-            this.pCredentials = new System.Windows.Forms.Panel();
-            this.lChatterCredentials = new System.Windows.Forms.Label();
             this.pSide.SuspendLayout();
             this.msMainMenu.SuspendLayout();
             this.pChat.SuspendLayout();
             this.pMessageTypesetter.SuspendLayout();
-            this.pCredentials.SuspendLayout();
             this.SuspendLayout();
             // 
             // pSide
@@ -85,11 +82,12 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.lbUsers.BackColor = System.Drawing.Color.White;
             this.lbUsers.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.lbUsers.Font = new System.Drawing.Font("Microsoft Sans Serif", 14F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
             this.lbUsers.FormattingEnabled = true;
-            this.lbUsers.ItemHeight = 16;
+            this.lbUsers.ItemHeight = 29;
             this.lbUsers.Location = new System.Drawing.Point(4, 6);
             this.lbUsers.Name = "lbUsers";
-            this.lbUsers.Size = new System.Drawing.Size(275, 628);
+            this.lbUsers.Size = new System.Drawing.Size(275, 613);
             this.lbUsers.TabIndex = 0;
             // 
             // msMainMenu
@@ -160,7 +158,6 @@
             this.pChat.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.pChat.Controls.Add(this.tbChat);
             this.pChat.Controls.Add(this.pMessageTypesetter);
-            this.pChat.Controls.Add(this.pCredentials);
             this.pChat.Dock = System.Windows.Forms.DockStyle.Fill;
             this.pChat.Location = new System.Drawing.Point(285, 28);
             this.pChat.Name = "pChat";
@@ -173,12 +170,12 @@
             this.tbChat.Cursor = System.Windows.Forms.Cursors.Hand;
             this.tbChat.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tbChat.Font = new System.Drawing.Font("Courier New", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.tbChat.Location = new System.Drawing.Point(0, 56);
+            this.tbChat.Location = new System.Drawing.Point(0, 0);
             this.tbChat.Multiline = true;
             this.tbChat.Name = "tbChat";
             this.tbChat.ReadOnly = true;
             this.tbChat.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.tbChat.Size = new System.Drawing.Size(1025, 413);
+            this.tbChat.Size = new System.Drawing.Size(1025, 469);
             this.tbChat.TabIndex = 3;
             // 
             // pMessageTypesetter
@@ -217,28 +214,6 @@
             this.tbMessage.Size = new System.Drawing.Size(874, 70);
             this.tbMessage.TabIndex = 0;
             // 
-            // pCredentials
-            // 
-            this.pCredentials.BackColor = System.Drawing.Color.SkyBlue;
-            this.pCredentials.Controls.Add(this.lChatterCredentials);
-            this.pCredentials.Cursor = System.Windows.Forms.Cursors.Hand;
-            this.pCredentials.Dock = System.Windows.Forms.DockStyle.Top;
-            this.pCredentials.Location = new System.Drawing.Point(0, 0);
-            this.pCredentials.Name = "pCredentials";
-            this.pCredentials.Size = new System.Drawing.Size(1025, 56);
-            this.pCredentials.TabIndex = 1;
-            // 
-            // lChatterCredentials
-            // 
-            this.lChatterCredentials.AutoSize = true;
-            this.lChatterCredentials.Font = new System.Drawing.Font("Courier New", 14F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
-            this.lChatterCredentials.Location = new System.Drawing.Point(3, 15);
-            this.lChatterCredentials.Name = "lChatterCredentials";
-            this.lChatterCredentials.Size = new System.Drawing.Size(166, 27);
-            this.lChatterCredentials.TabIndex = 0;
-            this.lChatterCredentials.Text = "Chat with: ";
-            this.lChatterCredentials.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            // 
             // fMain
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
@@ -261,8 +236,6 @@
             this.pChat.PerformLayout();
             this.pMessageTypesetter.ResumeLayout(false);
             this.pMessageTypesetter.PerformLayout();
-            this.pCredentials.ResumeLayout(false);
-            this.pCredentials.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -281,10 +254,8 @@
         private System.Windows.Forms.Panel pChat;
         private System.Windows.Forms.TextBox tbChat;
         private System.Windows.Forms.Panel pMessageTypesetter;
-        private System.Windows.Forms.Panel pCredentials;
         private System.Windows.Forms.TextBox tbMessage;
         private System.Windows.Forms.Button btnSend;
-        private System.Windows.Forms.Label lChatterCredentials;
         private System.Windows.Forms.ListBox lbUsers;
         private System.Windows.Forms.Button btnExit;
     }
