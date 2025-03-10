@@ -105,7 +105,7 @@ namespace CatChat
         }
         private void EndChat() 
         {
-            
+            SendMessageToAll();
         }
 
         private void StartChat() 
@@ -128,6 +128,15 @@ namespace CatChat
             ViewUpdate();
         }
 
+        private void SendUDPBroadcastPacket()
+        {
+            IPEndPoint broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, DEFAULT_UDP_PORT);
+            ChatMessage notice = new ChatMessage(MessageType.ConnectionNotice, UserIP, UserName);
+
+            _udpClient.Send(notice.Data, notice.Data.Length, broadcastEndpoint);
+            LogUpdate(LogMessageType.ConnectionNotice, DateTime.Now, UserIP);
+        }
+
         private void ListenForUdpBroadcasts()
         {
             while (_isRunning)
@@ -136,71 +145,131 @@ namespace CatChat
                 byte[] data = _udpClient.Receive(ref remoteEndpoint);
 
                 ChatMessage receivedMessage = new ChatMessage();
+                receivedMessage.Data = data;
                 MessageType type = receivedMessage.GetMessageType();
                 switch (type) 
                 {
                     case MessageType.ConnectionNotice:
-                        LogUpdate(LogMessageType.ConnectionNotice, DateTime.Now, receivedMessage.GetSenderIP());
-                        break;
-                }
-
-
-
-
-                //EstablishTcpConnection(nodeName, remoteEndpoint.Address);
+                        LogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP());
+                        InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
+                        break;        
+                }  
             }
         }
 
-        private void EstablishTcpConnection(string nodeName, IPAddress ipAddress)
+        private void InitiateTcpConnection(string senderName, IPAddress sender)
         {
-            //TcpClient tcpClient = new TcpClient();
-            //tcpClient.Connect(ipAddress, _tcpPort);
+            TcpClient tcpClient = new TcpClient();
+            tcpClient.Connect(sender, DEFAULT_TCP_PORT);
 
-            //// Отправляем свое имя для идентификации
-            //byte[] nameBytes = Encoding.UTF8.GetBytes(_name);
-            //tcpClient.GetStream().Write(nameBytes, 0, nameBytes.Length);
+            // Отправляем свое имя для идентификации
+            ChatMessage message = new ChatMessage(MessageType.NameTransfer, UserIP, UserName);
+            tcpClient.GetStream().Write(message.Data, 0, message.Data.Length);
+            
+            //добавили подключившийся узел
+            _activeNodes[senderName] = tcpClient;
 
-            //_activeNodes[nodeName] = tcpClient;
-
-            //// Запускаем поток для чтения сообщений от этого узла
-            //Thread readThread = new Thread(() => ReadMessagesFromNode(nodeName, tcpClient));
-            //readThread.Start();
+            // Запускаем поток для чтения сообщений от этого узла
+            Thread readThread = new Thread(() => ReadMessagesFromNode(senderName, tcpClient));
+            readThread.Start();
         }
 
         private void ListenForTcpConnections()
         {
-            //while (_isRunning)
-            //{
-            //    TcpClient tcpClient = _tcpListener.AcceptTcpClient();
-
-            //    // Чтение имени узла
-            //    byte[] buffer = new byte[1024];
-            //    int bytesRead = tcpClient.GetStream().Read(buffer, 0, buffer.Length);
-            //    string nodeName = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-            //    _activeNodes[nodeName] = tcpClient;
-
-            //    Console.WriteLine($"Установлено TCP-соединение с узлом: {nodeName}");
-
-            //    // Запускаем поток для чтения сообщений от этого узла
-            //    Thread readThread = new Thread(() => ReadMessagesFromNode(nodeName, tcpClient));
-            //    readThread.Start();
-            //}
-        }
-
-        private void SendUDPBroadcastPacket()
-        {
-            int port = 12345;
-            using (UdpClient udpClient = new UdpClient())
+            while (_isRunning)
             {
-                udpClient.EnableBroadcast = true;
-                IPEndPoint broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, port);
-                ChatMessage notice = new ChatMessage(MessageType.ConnectionNotice, UserIP, UserName);
+                TcpClient tcpClient = _tcpListener.AcceptTcpClient();
 
-                udpClient.Send(notice.Data, notice.Data.Length, broadcastEndpoint);
+                // Чтение имени узла
+                byte[] buffer = new byte[1024];
+                int bytesRead = tcpClient.GetStream().Read(buffer, 0, buffer.Length);
+                Array.Resize(ref buffer, bytesRead);
+
+                ChatMessage message = new ChatMessage();
+                message.Data = buffer;
+                if (message.GetMessageType() == MessageType.NameTransfer)
+                { 
+                    string senderName = message.GetMessage();
+                    _activeNodes[senderName] = tcpClient;
+
+                    // Запускаем поток для чтения сообщений от этого узла
+                    Thread readThread = new Thread(() => ReadMessagesFromNode(senderName, tcpClient));
+                    readThread.Start();
+                }
             }
-            LogUpdate(LogMessageType.ConnectionNotice, DateTime.Now, UserIP);
         }
+
+        private void ReadMessagesFromNode(string senderName, TcpClient tcpClient)
+        {
+            byte[] buffer = new byte[1024];
+            NetworkStream stream = tcpClient.GetStream();
+
+            while (_isRunning)
+            {
+                try
+                {
+                    int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                    if (bytesRead == 0) break; // Соединение закрыто
+
+                    byte[] data = new byte[bytesRead];
+                    Array.Copy(buffer, data, bytesRead);
+                    ChatMessage message = new ChatMessage();
+                    message.Data = data;
+
+                    switch (message.GetMessageType()) 
+                    {
+                        case MessageType.Message:
+                            LogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP());
+                            tbChat.Text += $"{senderName}: {message.GetMessage()}{NEW_LINE}";
+                            break;
+                        case MessageType.DisconnectionNotice:
+                            LogUpdate(LogMessageType.Disconnected, DateTime.Now, message.GetSenderIP());
+                            DisconnectNode(senderName);
+                            break;
+                    }
+                    
+                }
+                catch
+                {
+                    break; // Обработка разрыва соединения
+                }
+            }
+            DisconnectNode(senderName);
+        }
+
+        private void DisconnectNode(string senderName) 
+        {
+            _activeNodes.Remove(senderName);
+        }
+
+        private void SendMessageToAll(ChatMessage message)
+        {
+            foreach (var node in _activeNodes)
+            {
+                try
+                {
+                    node.Value.GetStream().Write(message.Data, 0, message.Data.Length);
+                }
+                catch
+                {
+                    // Обработка ошибок отправки
+                }
+            }
+        }
+
+        public void Stop()
+        {
+            _isRunning = false;
+            _udpClient.Close();
+            _tcpListener.Stop();
+
+            foreach (var node in _activeNodes)
+            {
+                node.Value.Close();
+            }
+        }
+
+
 
         //view
         private void ViewUpdate() 
@@ -236,6 +305,17 @@ namespace CatChat
         {
             EndChat();
             LogUpdate(LogMessageType.Disconnected, DateTime.Now, UserIP);
+        }
+
+        private void btnSend_Click(object sender, EventArgs e)
+        {
+            if (tbMessage.Text != "")
+            {
+                ChatMessage message = new ChatMessage(MessageType.Message, UserIP, tbMessage.Text);
+                tbMessage.Text = "";
+                tbChat.Text += $"{UserName}: {message.GetMessage()}{NEW_LINE}";
+                SendMessageToAll(message);
+            }
         }
     }
 }
