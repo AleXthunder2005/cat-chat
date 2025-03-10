@@ -37,8 +37,8 @@ namespace CatChat
             TransferName        //передача имени
         }
         string NEW_LINE = Environment.NewLine;
-        //const int DEFAULT_UDP_PORT = 12345;
-        //const int DEFAULT_TCP_PORT = 22222;
+        const int DEFAULT_UDP_PORT = 28085;
+        const int DEFAULT_TCP_PORT = 12105;
 
         //fields
         private string _userName = null;
@@ -47,8 +47,8 @@ namespace CatChat
         private TcpListener _tcpListener = null;
         private Dictionary<string, TcpClient> _activeNodes = new Dictionary<string, TcpClient>();
         private bool _isRunning = true;
-        private int _udpPort;
-        private int _tcpPort;
+        //private int _udpPort;
+        //private int _tcpPort;
 
         //properties
         public string UserName
@@ -135,18 +135,15 @@ namespace CatChat
         private void StartChat()
         {
             // Запуск прослушивания UDP-пакетов
-            _udpClient = new UdpClient(new IPEndPoint(UserIP, 0));
-            _udpPort = ((IPEndPoint)(_udpClient.Client.LocalEndPoint)).Port;
+            _udpClient = new UdpClient(new IPEndPoint(UserIP, DEFAULT_UDP_PORT));
             _udpClient.EnableBroadcast = true;
 
             Thread udpThread = new Thread(ListenForUdpBroadcasts);
             udpThread.Start();
 
             // Запуск TCP-сервера
-            _tcpListener = new TcpListener(new IPEndPoint(UserIP, 0));
+            _tcpListener = new TcpListener(new IPEndPoint(UserIP, DEFAULT_TCP_PORT));
             _tcpListener.Start();
-            IPEndPoint localEndPoint = (IPEndPoint)_tcpListener.LocalEndpoint;
-            _tcpPort = localEndPoint.Port;
 
             Thread tcpThread = new Thread(ListenForTcpConnections);
             tcpThread.Start();
@@ -158,7 +155,7 @@ namespace CatChat
 
         private void SendUDPBroadcastPacket()
         {
-            IPEndPoint broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, _udpPort);
+            IPEndPoint broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, DEFAULT_UDP_PORT);
             ChatMessage notice = new ChatMessage(MessageType.ConnectionNotice, UserIP, UserName);
             _udpClient.Send(notice.Data, notice.Data.Length, broadcastEndpoint);
             
@@ -188,7 +185,7 @@ namespace CatChat
         {
             while (_isRunning)
             {
-                IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, _udpPort);
+                IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, DEFAULT_UDP_PORT);
                 byte[] data = _udpClient.Receive(ref remoteEndpoint);
 
                 if (remoteEndpoint.Address.Equals(UserIP)) continue; //Если пакет получен от отправителя - игнорируем
@@ -209,7 +206,7 @@ namespace CatChat
         private void InitiateTcpConnection(string senderName, IPAddress sender)
         {
             TcpClient tcpClient = new TcpClient();
-            tcpClient.Connect(sender, _tcpPort);
+            tcpClient.Connect(sender, DEFAULT_TCP_PORT);
 
             // Отправляем свое имя для идентификации
             ChatMessage message = new ChatMessage(MessageType.NameTransfer, UserIP, UserName);
