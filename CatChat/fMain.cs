@@ -44,11 +44,11 @@ namespace CatChat
         private string _userName = null;
         private IPAddress _ip = null;
         private UdpClient _udpClient = null;
+        private Thread _udpThread = null;
+        private Thread _tcpThread = null;
         private TcpListener _tcpListener = null;
         private Dictionary<string, TcpClient> _activeNodes = new Dictionary<string, TcpClient>();
         private bool _isRunning = true;
-        //private int _udpPort;
-        //private int _tcpPort;
 
         //properties
         public string UserName
@@ -94,7 +94,7 @@ namespace CatChat
                     tbLog.Text += $"{currTime.ToString()}: message from {UserName}({UserIP}) sent{NEW_LINE}";
                     break;
                 case LogMessageType.MessageReceived:
-                    tbLog.Text += $"{currTime.ToString()}: message from {ip}({name}) received{NEW_LINE}";
+                    tbLog.Text += $"{currTime.ToString()}: message from {name}({ip}) received{NEW_LINE}";
                     break;
                 case LogMessageType.ConnectionNotice:
                     tbLog.Text += $"{currTime.ToString()}: connection notice from {UserName}({UserIP}) sent{NEW_LINE}";
@@ -134,19 +134,20 @@ namespace CatChat
 
         private void StartChat()
         {
+            _isRunning = true;
             // Запуск прослушивания UDP-пакетов
             _udpClient = new UdpClient(new IPEndPoint(UserIP, DEFAULT_UDP_PORT));
             _udpClient.EnableBroadcast = true;
 
-            Thread udpThread = new Thread(ListenForUdpBroadcasts);
-            udpThread.Start();
+            _udpThread = new Thread(ListenForUdpBroadcasts);
+            _udpThread.Start();
 
             // Запуск TCP-сервера
             _tcpListener = new TcpListener(new IPEndPoint(UserIP, DEFAULT_TCP_PORT));
             _tcpListener.Start();
 
-            Thread tcpThread = new Thread(ListenForTcpConnections);
-            tcpThread.Start();
+            _tcpThread = new Thread(ListenForTcpConnections);
+            _tcpThread.Start();
 
             SendUDPBroadcastPacket();
 
@@ -170,14 +171,18 @@ namespace CatChat
         }
         private void Stop()
         {
-            //_isRunning = false;
-            //_udpClient.Close();
-            //_tcpListener.Stop();
+            _isRunning = false; // Останавливаем поток
 
-            //foreach (var node in _activeNodes)
-            //{
-            //    node.Value.Close();
-            //}
+            _udpThread.Join(); // Ожидаем завершения потока
+            _tcpThread.Join();
+
+            _udpClient.Close();
+            _tcpListener.Stop();
+
+            foreach (var node in _activeNodes)
+            {
+                node.Value.Close();
+            }
         }
 
 
@@ -237,7 +242,10 @@ namespace CatChat
                 if (message.GetMessageType() == MessageType.NameTransfer)
                 {
                     string senderName = message.GetMessage();
+                    IPAddress senderIP = message.GetSenderIP();
+                    SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, senderIP, senderName);
                     _activeNodes[senderName] = tcpClient;
+                    ViewUpdate();
 
                     // Запускаем поток для чтения сообщений от этого узла
                     Thread readThread = new Thread(() => ReadMessagesFromNode(senderName, tcpClient));
@@ -266,7 +274,7 @@ namespace CatChat
                     switch (message.GetMessageType())
                     {
                         case MessageType.Message:
-                            SafeLogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP(), message.GetMessage());
+                            SafeLogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP(), senderName);
                             SafeUpdateChat($"{senderName}: {message.GetMessage()}{NEW_LINE}");
                             break;
                         case MessageType.DisconnectionNotice:
@@ -302,6 +310,7 @@ namespace CatChat
                     // Обработка ошибок отправки
                 }
             }
+            SafeLogUpdate(LogMessageType.MessageSent, DateTime.Now, null);
         }
 
 
@@ -309,6 +318,11 @@ namespace CatChat
         //view
         private void ViewUpdate()
         {
+            lbUsers.Items.Clear();
+            foreach (var node in _activeNodes) 
+            { 
+                lbUsers.Items.Add(node.Key);
+            }
         }
 
         //controllers
