@@ -47,7 +47,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChatMessage.cs" />
-    <Compile Include="Node.cs" />
     <Compile Include="fMain.cs">
       <SubType>Form</SubType>
     </Compile>

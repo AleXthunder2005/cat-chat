@@ -13,7 +13,6 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml.Linq;
 using static CatChat.ChatMessage;
-using static CatChat.Node;
 
 namespace CatChat
 {
@@ -138,6 +137,7 @@ namespace CatChat
             // Запуск прослушивания UDP-пакетов
             _udpClient = new UdpClient(new IPEndPoint(UserIP, DEFAULT_UDP_PORT));
             _udpClient.EnableBroadcast = true;
+            _udpClient.Client.ReceiveTimeout = 1000; // Тайм-аут 1 секунда
 
             _udpThread = new Thread(ListenForUdpBroadcasts);
             _udpThread.Start();
@@ -173,16 +173,17 @@ namespace CatChat
         {
             _isRunning = false; // Останавливаем поток
 
-            _udpThread.Join(); // Ожидаем завершения потока
-            _tcpThread.Join();
-
             _udpClient.Close();
             _tcpListener.Stop();
 
             foreach (var node in _activeNodes)
             {
                 node.Value.Close();
+                ViewUpdate();
             }
+
+            _udpThread.Join(); // Ожидаем завершения потока
+            _tcpThread.Join();
         }
 
 
@@ -190,21 +191,33 @@ namespace CatChat
         {
             while (_isRunning)
             {
-                IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, DEFAULT_UDP_PORT);
-                byte[] data = _udpClient.Receive(ref remoteEndpoint);
-
-                if (remoteEndpoint.Address.Equals(UserIP)) continue; //Если пакет получен от отправителя - игнорируем
-
-                ChatMessage receivedMessage = new ChatMessage();
-                receivedMessage.Data = data;
-                MessageType type = receivedMessage.GetMessageType();
-                switch (type)
+                try
                 {
-                    case MessageType.ConnectionNotice:
-                        SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
-                        ViewUpdate();
-                        InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
-                        break;
+                    IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, DEFAULT_UDP_PORT);
+                    byte[] data = _udpClient.Receive(ref remoteEndpoint);
+
+                    if (remoteEndpoint.Address.Equals(UserIP)) continue;
+
+                    ChatMessage receivedMessage = new ChatMessage();
+                    receivedMessage.Data = data;
+                    MessageType type = receivedMessage.GetMessageType();
+                    switch (type)
+                    {
+                        case MessageType.ConnectionNotice:
+                            SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
+                            InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
+                            break;
+                    }
+                }
+                catch (SocketException ex) when (ex.SocketErrorCode == SocketError.TimedOut)
+                {
+                    // Тайм-аут, продолжаем цикл
+                    continue;
+                }
+                catch (Exception ex)
+                {
+                    // Обработка других исключений
+                    continue;
                 }
             }
         }
@@ -227,30 +240,43 @@ namespace CatChat
             readThread.Start();
         }
 
-        private void ListenForTcpConnections()
+        private async void ListenForTcpConnections()
         {
             while (_isRunning)
             {
-                TcpClient tcpClient = _tcpListener.AcceptTcpClient();
-
-                // Чтение имени узла
-                byte[] buffer = new byte[1024];
-                int bytesRead = tcpClient.GetStream().Read(buffer, 0, buffer.Length);
-                Array.Resize(ref buffer, bytesRead);
-
-                ChatMessage message = new ChatMessage();
-                message.Data = buffer;
-                if (message.GetMessageType() == MessageType.NameTransfer)
+                try
                 {
-                    string senderName = message.GetMessage();
-                    IPAddress senderIP = message.GetSenderIP();
-                    SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, senderIP, senderName);
-                    _activeNodes[senderName] = tcpClient;
-                    ViewUpdate();
+                    TcpClient tcpClient = await _tcpListener.AcceptTcpClientAsync();
 
-                    // Запускаем поток для чтения сообщений от этого узла
-                    Thread readThread = new Thread(() => ReadMessagesFromNode(senderName, tcpClient));
-                    readThread.Start();
+                    // Обработка подключения
+                    byte[] buffer = new byte[1024];
+                    int bytesRead = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
+                    Array.Resize(ref buffer, bytesRead);
+
+                    ChatMessage message = new ChatMessage();
+                    message.Data = buffer;
+                    if (message.GetMessageType() == MessageType.NameTransfer)
+                    {
+                        string senderName = message.GetMessage();
+                        IPAddress senderIP = message.GetSenderIP();
+                        SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, senderIP, senderName);
+                        _activeNodes[senderName] = tcpClient;
+                        ViewUpdate();
+
+                        // Запускаем поток для чтения сообщений от этого узла
+                        Thread readThread = new Thread(() => ReadMessagesFromNode(senderName, tcpClient));
+                        readThread.Start();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // TcpListener был остановлен
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    // Обработка других исключений
+                    Console.WriteLine($"Ошибка: {ex.Message}");
                 }
             }
         }
@@ -317,6 +343,13 @@ namespace CatChat
         //view
         private void ViewUpdate()
         {
+            //tbChat
+            tbChat.Text = "";
+
+            //tbMessage
+            tbMessage.Text = "";
+
+            //lbUsers
             lbUsers.Items.Clear();
             foreach (var node in _activeNodes) 
             { 
