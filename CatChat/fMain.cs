@@ -33,11 +33,12 @@ namespace CatChat
             MessageSent,      //мы отправили сообщение
             MessageReceived,  //мы получили сообщение
             ConnectionNotice,  //мы послали уведомление что подключились
-            DisconnectionNotice  //мы послали уведомление что отключились
+            DisconnectionNotice,  //мы послали уведомление что отключились
+            TransferName        //передача имени
         }
         string NEW_LINE = Environment.NewLine;
-        const int DEFAULT_UDP_PORT = 12345;
-        const int DEFAULT_TCP_PORT = 22222;
+        //const int DEFAULT_UDP_PORT = 12345;
+        //const int DEFAULT_TCP_PORT = 22222;
 
         //fields
         private string _userName = null;
@@ -46,6 +47,8 @@ namespace CatChat
         private TcpListener _tcpListener = null;
         private Dictionary<string, TcpClient> _activeNodes = new Dictionary<string, TcpClient>();
         private bool _isRunning = true;
+        private int _udpPort;
+        private int _tcpPort;
 
         //properties
         public string UserName
@@ -71,7 +74,7 @@ namespace CatChat
             UserIP = ip;
         }
 
-        private void LogUpdate(LogMessageType type, DateTime currTime, IPAddress ip)
+        private void LogUpdate(LogMessageType type, DateTime currTime, IPAddress ip, string name = null)
         {
             switch (type)
             {
@@ -82,16 +85,16 @@ namespace CatChat
                     tbLog.Text += $"{currTime.ToString()}: ended chat as {UserName}({UserIP}){NEW_LINE}";
                     break;
                 case LogMessageType.NodeDetected:
-                    tbLog.Text += $"{currTime.ToString()}: user {UserName}({UserIP}) detected{NEW_LINE}";
+                    tbLog.Text += $"{currTime.ToString()}: user {name}({ip}) detected{NEW_LINE}";
                     break;
                 case LogMessageType.NodeDisconnected:
-                    tbLog.Text += $"{currTime.ToString()}: user {UserName}({UserIP}) disconnected{NEW_LINE}";
+                    tbLog.Text += $"{currTime.ToString()}: user {name}({ip}) disconnected{NEW_LINE}";
                     break;
                 case LogMessageType.MessageSent:
-                    tbLog.Text += $"{currTime.ToString()}: message to {UserName}({UserIP}) sent{NEW_LINE}";
+                    tbLog.Text += $"{currTime.ToString()}: message from {UserName}({UserIP}) sent{NEW_LINE}";
                     break;
                 case LogMessageType.MessageReceived:
-                    tbLog.Text += $"{currTime.ToString()}: message from {UserName}({UserIP}) received{NEW_LINE}";
+                    tbLog.Text += $"{currTime.ToString()}: message from {ip}({name}) received{NEW_LINE}";
                     break;
                 case LogMessageType.ConnectionNotice:
                     tbLog.Text += $"{currTime.ToString()}: connection notice from {UserName}({UserIP}) sent{NEW_LINE}";
@@ -99,18 +102,21 @@ namespace CatChat
                 case LogMessageType.DisconnectionNotice:
                     tbLog.Text += $"{currTime.ToString()}: disconnection notice from {UserName}({UserIP}) sent{NEW_LINE}";
                     break;
+                case LogMessageType.TransferName:
+                    tbLog.Text += $"{currTime.ToString()}: transfer name from {UserName}({UserIP}) sent{NEW_LINE}";
+                    break;
             }
         }
 
-        private void SafeLogUpdate(LogMessageType type, DateTime currTime, IPAddress ip)
+        private void SafeLogUpdate(LogMessageType type, DateTime currTime, IPAddress ip, string name = null)
         {
             if (tbLog.InvokeRequired)
             {
-                tbLog.Invoke(new Action(() => LogUpdate(type, currTime, ip)));
+                tbLog.Invoke(new Action(() => LogUpdate(type, currTime, ip, name)));
             }
             else
             {
-                LogUpdate(type, currTime, ip);
+                LogUpdate(type, currTime, ip, name);
             }
         }
 
@@ -126,6 +132,38 @@ namespace CatChat
             }
         }
 
+        private void StartChat()
+        {
+            // Запуск прослушивания UDP-пакетов
+            _udpClient = new UdpClient(new IPEndPoint(UserIP, 0));
+            _udpPort = ((IPEndPoint)(_udpClient.Client.LocalEndPoint)).Port;
+            _udpClient.EnableBroadcast = true;
+
+            Thread udpThread = new Thread(ListenForUdpBroadcasts);
+            udpThread.Start();
+
+            // Запуск TCP-сервера
+            _tcpListener = new TcpListener(new IPEndPoint(UserIP, 0));
+            _tcpListener.Start();
+            IPEndPoint localEndPoint = (IPEndPoint)_tcpListener.LocalEndpoint;
+            _tcpPort = localEndPoint.Port;
+
+            Thread tcpThread = new Thread(ListenForTcpConnections);
+            tcpThread.Start();
+
+            SendUDPBroadcastPacket();
+
+            ViewUpdate();
+        }
+
+        private void SendUDPBroadcastPacket()
+        {
+            IPEndPoint broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, _udpPort);
+            ChatMessage notice = new ChatMessage(MessageType.ConnectionNotice, UserIP, UserName);
+            _udpClient.Send(notice.Data, notice.Data.Length, broadcastEndpoint);
+            
+            LogUpdate(LogMessageType.ConnectionNotice, DateTime.Now, UserIP);
+        }
         private void EndChat()
         {
             ChatMessage message = new ChatMessage(MessageType.DisconnectionNotice, UserIP, UserName);
@@ -144,39 +182,13 @@ namespace CatChat
             //    node.Value.Close();
             //}
         }
-        private void StartChat()
-        {
-            // Запуск прослушивания UDP-пакетов
-            _udpClient = new UdpClient(new IPEndPoint(UserIP, DEFAULT_UDP_PORT));
-            _udpClient.EnableBroadcast = true;
-            Thread udpThread = new Thread(ListenForUdpBroadcasts);
-            udpThread.Start();
 
-            // Запуск TCP-сервера
-            _tcpListener = new TcpListener(new IPEndPoint(UserIP, DEFAULT_TCP_PORT));
-            _tcpListener.Start();
-            Thread tcpThread = new Thread(ListenForTcpConnections);
-            tcpThread.Start();
-
-            SendUDPBroadcastPacket();
-
-            ViewUpdate();
-        }
-
-        private void SendUDPBroadcastPacket()
-        {
-            IPEndPoint broadcastEndpoint = new IPEndPoint(IPAddress.Broadcast, DEFAULT_UDP_PORT);
-            ChatMessage notice = new ChatMessage(MessageType.ConnectionNotice, UserIP, UserName);
-
-            _udpClient.Send(notice.Data, notice.Data.Length, broadcastEndpoint);
-            SafeLogUpdate(LogMessageType.ConnectionNotice, DateTime.Now, UserIP);
-        }
 
         private void ListenForUdpBroadcasts()
         {
             while (_isRunning)
             {
-                IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, 0);
+                IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, _udpPort);
                 byte[] data = _udpClient.Receive(ref remoteEndpoint);
 
                 if (remoteEndpoint.Address.Equals(UserIP)) continue; //Если пакет получен от отправителя - игнорируем
@@ -187,7 +199,7 @@ namespace CatChat
                 switch (type)
                 {
                     case MessageType.ConnectionNotice:
-                        SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP());
+                        SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
                         InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
                         break;
                 }
@@ -197,11 +209,12 @@ namespace CatChat
         private void InitiateTcpConnection(string senderName, IPAddress sender)
         {
             TcpClient tcpClient = new TcpClient();
-            tcpClient.Connect(sender, DEFAULT_TCP_PORT);
+            tcpClient.Connect(sender, _tcpPort);
 
             // Отправляем свое имя для идентификации
             ChatMessage message = new ChatMessage(MessageType.NameTransfer, UserIP, UserName);
             tcpClient.GetStream().Write(message.Data, 0, message.Data.Length);
+            SafeLogUpdate(LogMessageType.TransferName, DateTime.Now, sender);
 
             //добавили подключившийся узел
             _activeNodes[senderName] = tcpClient;
@@ -256,11 +269,12 @@ namespace CatChat
                     switch (message.GetMessageType())
                     {
                         case MessageType.Message:
-                            SafeLogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP());
+                            SafeLogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP(), message.GetMessage());
                             SafeUpdateChat($"{senderName}: {message.GetMessage()}{NEW_LINE}");
                             break;
                         case MessageType.DisconnectionNotice:
-                            SafeLogUpdate(LogMessageType.Disconnected, DateTime.Now, message.GetSenderIP());
+                            SafeLogUpdate(LogMessageType.NodeDisconnected, DateTime.Now, message.GetSenderIP(), message.GetMessage());
+
                             DisconnectNode(senderName);
                             break;
                     }
