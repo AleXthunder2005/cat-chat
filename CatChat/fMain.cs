@@ -154,12 +154,19 @@ namespace CatChat
         private async Task ListenForUdpBroadcasts(CancellationToken cancelationToken)
         {
             UdpReceiveResult result;
-            cancelationToken.Register(() => StopChatAsync());
+            cancelationToken.Register(() => { _udpClient.Close(); });
 
             while (_isRunning && !cancelationToken.IsCancellationRequested)
             {
                 IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, DEFAULT_UDP_PORT);
-                result = await _udpClient.ReceiveAsync();
+                try
+                {
+                    result = await _udpClient.ReceiveAsync();
+                }
+                catch (ObjectDisposedException ex) 
+                {
+                    break;
+                }
 
                 if (result.RemoteEndPoint.Address.Equals(UserIP))
                     continue; // Игнорируем собственные пакеты
@@ -202,10 +209,18 @@ namespace CatChat
 
         private async Task ListenForTcpConnections(CancellationToken cancelationToken)
         {
-            cancelationToken.Register(() => StopChatAsync());
+            cancelationToken.Register(() => { _tcpListener.Stop(); });
             while (_isRunning && !cancelationToken.IsCancellationRequested)
             {
-                TcpClient tcpClient = await _tcpListener.AcceptTcpClientAsync();
+                TcpClient tcpClient;
+                try
+                {
+                    tcpClient = await _tcpListener.AcceptTcpClientAsync();
+                }
+                catch (ObjectDisposedException ex)
+                {
+                    break;
+                }
 
                 // Чтение имени узла
                 byte[] buffer = new byte[1024];
@@ -243,6 +258,7 @@ namespace CatChat
             SendMessageToAll(message);
 
             _isRunning = false;
+            _cancellationTokenSourceForListeners.Cancel();
             _cancellationTokenSourceForListeners.Dispose();
 
             // Дожидаемся завершения задач
@@ -252,16 +268,16 @@ namespace CatChat
                 await _tcpListeningTask;
 
             // Закрытие UDP и TCP сокетов
-            _udpClient.Close();
-            _tcpListener.Stop();
+            //_udpClient?.Close();
+            //_tcpListener?.Stop();
 
             // Закрытие всех активных подключений
             foreach (var node in _activeNodes)
             {
                 DisconnectNode(node.Key);  //там надо прервать выполнение таски
             }
-            _activeNodes.Clear();
-            _activeMessageReaders.Clear();
+
+            LogUpdate(LogMessageType.Disconnected, DateTime.Now, UserIP, UserName);
 
             ViewUpdate();
             tbChat.Text = "";
@@ -284,7 +300,7 @@ namespace CatChat
         {
             byte[] buffer = new byte[1024];
             NetworkStream stream = tcpClient.GetStream();
-            cancellationToken.Register(() => StopChatAsync());
+            cancellationToken.Register(() => { });
 
             try
             {
