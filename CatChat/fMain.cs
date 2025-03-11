@@ -111,18 +111,6 @@ namespace CatChat
             }
         }
 
-        private void SafeLogUpdate(LogMessageType type, DateTime currTime, IPAddress ip, string name = null)
-        {
-            if (tbLog.InvokeRequired)
-            {
-                tbLog.Invoke(new Action(() => LogUpdate(type, currTime, ip, name)));
-            }
-            else
-            {
-                LogUpdate(type, currTime, ip, name);
-            }
-        }
-
         private void SafeUpdateChat(string message)
         {
             if (tbChat.InvokeRequired)
@@ -182,7 +170,7 @@ namespace CatChat
                 switch (type)
                 {
                     case MessageType.ConnectionNotice:
-                        SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
+                        LogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
                         ViewUpdate();
                         InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
                         break;
@@ -211,40 +199,33 @@ namespace CatChat
 
         private async Task ListenForTcpConnections()
         {
-            try
+            while (_isRunning)
             {
-                while (_isRunning)
+                TcpClient tcpClient = await _tcpListener.AcceptTcpClientAsync();
+
+                // Чтение имени узла
+                byte[] buffer = new byte[1024];
+                int bytesRead = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
+
+                if (bytesRead > 0)
                 {
-                    TcpClient tcpClient = await _tcpListener.AcceptTcpClientAsync();
+                    Array.Resize(ref buffer, bytesRead);
 
-                    // Чтение имени узла
-                    byte[] buffer = new byte[1024];
-                    int bytesRead = await tcpClient.GetStream().ReadAsync(buffer, 0, buffer.Length);
-
-                    if (bytesRead > 0)
+                    ChatMessage message = new ChatMessage();
+                    message.Data = buffer;
+                    if (message.GetMessageType() == MessageType.NameTransfer)
                     {
-                        Array.Resize(ref buffer, bytesRead);
+                        string senderName = message.GetMessage();
+                        IPAddress senderIP = message.GetSenderIP();
+                        LogUpdate(LogMessageType.NodeDetected, DateTime.Now, senderIP, senderName);
 
-                        ChatMessage message = new ChatMessage();
-                        message.Data = buffer;
-                        if (message.GetMessageType() == MessageType.NameTransfer)
-                        {
-                            string senderName = message.GetMessage();
-                            IPAddress senderIP = message.GetSenderIP();
-                            SafeLogUpdate(LogMessageType.NodeDetected, DateTime.Now, senderIP, senderName);
+                        _activeNodes[senderName] = tcpClient;
+                        ViewUpdate();
 
-                            _activeNodes[senderName] = tcpClient;
-                            ViewUpdate();
-
-                            // Запускаем задачу для чтения сообщений от узла
-                            _activeMessageReaders[senderName] = Task.Run(() => ReadMessagesFromNode(senderName, tcpClient));
-                        }
+                        // Запускаем задачу для чтения сообщений от узла
+                        _activeMessageReaders[senderName] = Task.Run(() => ReadMessagesFromNode(senderName, tcpClient));
                     }
                 }
-            }
-            catch (ObjectDisposedException)
-            {
-                // Сокет закрыт, завершение
             }
         }
 
@@ -254,32 +235,29 @@ namespace CatChat
             ChatMessage message = new ChatMessage(MessageType.DisconnectionNotice, UserIP, UserName);
             SendMessageToAll(message);
 
-            await StopAsync();
-        }
-
-        private async Task StopAsync()
-        {
             _isRunning = false;
 
             // Дожидаемся завершения задач
-            if (_udpListeningTask != null)
+            if (_udpListeningTask != null)  //прервать выполнение таски
                 await _udpListeningTask;
             if (_tcpListeningTask != null)
                 await _tcpListeningTask;
 
             // Закрытие UDP и TCP сокетов
-            _udpClient?.Close();
-            _tcpListener?.Stop();
+            _udpClient.Close();
+            _tcpListener.Stop();
 
             // Закрытие всех активных подключений
             foreach (var node in _activeNodes)
             {
-                DisconnectNode(node.Key);
+                DisconnectNode(node.Key);  //там надо прервать выполнение таски
             }
             _activeNodes.Clear();
+            _activeMessageReaders.Clear();
 
             ViewUpdate();
         }
+
 
         private void DisconnectNode(string senderName)
         {
@@ -312,11 +290,11 @@ namespace CatChat
                     switch (message.GetMessageType())
                     {
                         case MessageType.Message:
-                            SafeLogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP(), senderName);
+                            LogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP(), senderName);
                             SafeUpdateChat($"{senderName}: {message.GetMessage()}{NEW_LINE}");
                             break;
                         case MessageType.DisconnectionNotice:
-                            SafeLogUpdate(LogMessageType.NodeDisconnected, DateTime.Now, message.GetSenderIP(), message.GetMessage());
+                            LogUpdate(LogMessageType.NodeDisconnected, DateTime.Now, message.GetSenderIP(), message.GetMessage());
                             DisconnectNode(senderName);
                             break;
                     }
@@ -331,8 +309,6 @@ namespace CatChat
                 DisconnectNode(senderName);
             }
         }
-
-
 
         private void SendMessageToAll(ChatMessage message)
         {
@@ -349,7 +325,7 @@ namespace CatChat
                 }
             }
             if (message.GetMessageType() == MessageType.Message)
-                SafeLogUpdate(LogMessageType.MessageSent, DateTime.Now, null);
+                LogUpdate(LogMessageType.MessageSent, DateTime.Now, null);
         }
 
         //view
@@ -383,7 +359,7 @@ namespace CatChat
             if (authentificator.ShowDialog() == DialogResult.OK)
             {
                 InitializeUser(authentificator.UserName, authentificator.UserIP);
-                SafeLogUpdate(LogMessageType.Connected, DateTime.Now, UserIP);
+                LogUpdate(LogMessageType.Connected, DateTime.Now, UserIP);
 
                 StartChat();
             }
@@ -392,7 +368,7 @@ namespace CatChat
         private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
         {
             StopChatAsync();
-            SafeLogUpdate(LogMessageType.Disconnected, DateTime.Now, UserIP);
+            LogUpdate(LogMessageType.Disconnected, DateTime.Now, UserIP);
         }
 
         private void btnSend_Click(object sender, EventArgs e)
