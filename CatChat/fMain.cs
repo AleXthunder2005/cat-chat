@@ -172,8 +172,8 @@ namespace CatChat
                 {
                     case MessageType.ConnectionNotice:
                         LogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
-                        ViewUpdate();
                         InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
+                        ViewUpdate();
                         break;
                 }
             }
