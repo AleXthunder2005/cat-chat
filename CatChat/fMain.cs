@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml.Linq;
 using static CatChat.ChatMessage;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace CatChat
 {
@@ -21,6 +22,7 @@ namespace CatChat
         public fMain()
         {
             InitializeComponent();
+            tbMessage.KeyDown += tbMessage_KeyDown; // Подписываемся на событие KeyDown
         }
 
         private enum LogMessageType
@@ -112,6 +114,9 @@ namespace CatChat
                     tbLog.Text += $"{currTime.ToString()}: transfer name from {UserName}({UserIP}) sent{NEW_LINE}";
                     break;
             }
+
+            tbLog.SelectionStart = tbLog.Text.Length; // Устанавливаем курсор в конец текста
+            tbLog.ScrollToCaret(); // Прокручиваем TextBox к положению курсора
         }
 
         private void UpdateChat(string message)
@@ -261,16 +266,6 @@ namespace CatChat
             _cancellationTokenSourceForListeners.Cancel();
             _cancellationTokenSourceForListeners.Dispose();
 
-            // Дожидаемся завершения задач
-            //if (_udpListeningTask != null)  //прервать выполнение таски
-            //    await _udpListeningTask;
-            //if (_tcpListeningTask != null)
-            //    await _tcpListeningTask;
-
-            // Закрытие UDP и TCP сокетов
-            //_udpClient?.Close();
-            //_tcpListener?.Stop();
-
             // Закрытие всех активных подключений
             foreach (var node in _activeNodes)
             {
@@ -296,8 +291,18 @@ namespace CatChat
                 
                 _activeMessageReaders.Remove(senderName);
             }
-            ViewUpdate();
         }
+
+        private void DisconnectAndDeleteNode(string senderName)
+        {
+            if (_activeNodes.TryGetValue(senderName, out var client))
+            {
+                DisconnectNode(senderName);
+                _activeNodes.Remove(senderName);
+                ViewUpdate();
+            }
+        }
+
 
         private async Task ReadMessagesFromNode(string senderName, TcpClient tcpClient, CancellationToken cancellationToken)
         {
@@ -326,7 +331,7 @@ namespace CatChat
                             break;
                         case MessageType.DisconnectionNotice:
                             LogUpdate(LogMessageType.NodeDisconnected, DateTime.Now, message.GetSenderIP(), message.GetMessage());
-                            DisconnectNode(senderName);
+                            DisconnectAndDeleteNode(senderName);
                             break;
                     }
                 }
@@ -337,7 +342,7 @@ namespace CatChat
             }
             finally
             {
-                DisconnectNode(senderName);
+                DisconnectAndDeleteNode(senderName);
             }
         }
 
@@ -359,6 +364,16 @@ namespace CatChat
             if (message.GetMessageType() == MessageType.Message)
                 LogUpdate(LogMessageType.MessageSent, DateTime.Now, null);
         }
+        private void SendMessage() 
+        {
+            if (tbMessage.Text != "")
+            {
+                ChatMessage message = new ChatMessage(MessageType.Message, UserIP, tbMessage.Text);
+                tbMessage.Text = "";
+                UpdateChat($"{UserName}: {message.GetMessage()}{NEW_LINE}");
+                SendMessageToAll(message);
+            }
+        }
 
         //view
         private void ViewUpdate()
@@ -371,6 +386,15 @@ namespace CatChat
             foreach (var node in _activeNodes) 
             { 
                 lbUsers.Items.Add(node.Key);
+            }
+        }
+
+        private void tbMessage_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
+            {
+                e.SuppressKeyPress = true; // Отключаем звуковой сигнал при нажатии Enter
+                SendMessage();
             }
         }
 
@@ -404,13 +428,7 @@ namespace CatChat
 
         private void btnSend_Click(object sender, EventArgs e)
         {
-            if (tbMessage.Text != "")
-            {
-                ChatMessage message = new ChatMessage(MessageType.Message, UserIP, tbMessage.Text);
-                tbMessage.Text = "";
-                UpdateChat($"{UserName}: {message.GetMessage()}{NEW_LINE}");
-                SendMessageToAll(message);
-            }
+            SendMessage();
         }
     }
 }
