@@ -173,7 +173,6 @@ namespace CatChat
                     case MessageType.ConnectionNotice:
                         LogUpdate(LogMessageType.NodeDetected, DateTime.Now, receivedMessage.GetSenderIP(), receivedMessage.GetMessage());
                         InitiateTcpConnection(receivedMessage.GetMessage(), receivedMessage.GetSenderIP());
-                        ViewUpdate();
                         break;
                 }
             }
@@ -192,6 +191,7 @@ namespace CatChat
 
             //добавили подключившийся узел
             _activeNodes[senderName] = tcpClient;
+            ViewUpdate();
 
             // Запускаем задачу для чтения сообщений от этого узла
             CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
