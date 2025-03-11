@@ -43,14 +43,18 @@ namespace CatChat
         private string _userName = null;
         private IPAddress _ip = null;
         private UdpClient _udpClient = null;
+        private TcpListener _tcpListener = null;
 
         private Task _udpListeningTask;
         private Task _tcpListeningTask;
-
-        private TcpListener _tcpListener = null;
+        
         private Dictionary<string, TcpClient> _activeNodes = new Dictionary<string, TcpClient>();
-        private Dictionary<string, Task> _activeMessageReaders;
-        private bool _isRunning = true;
+        private Dictionary<string, Task> _activeMessageReaders = new Dictionary<string, Task>();
+        private Dictionary<string, CancellationTokenSource> _activeCancellationTokens = new Dictionary<string, CancellationTokenSource>();
+        private bool _isRunning = false;
+
+        private CancellationTokenSource _cancellationTokenSourceForListeners;
+
 
         //properties
         public string UserName
@@ -63,7 +67,6 @@ namespace CatChat
             get { return _ip; }
             private set { _ip = value; }
         }
-
         //model
         private void CloseApplication()
         {
@@ -124,8 +127,7 @@ namespace CatChat
             LogUpdate(LogMessageType.ConnectionNotice, DateTime.Now, UserIP);
         }
 
-
-
+        //------------------------------------------------------------------------
         private async void StartChat()
         {
             _isRunning = true;
@@ -133,12 +135,15 @@ namespace CatChat
             // Запуск прослушивания UDP-пакетов
             _udpClient = new UdpClient(new IPEndPoint(UserIP, DEFAULT_UDP_PORT));
             _udpClient.EnableBroadcast = true;
-            _udpListeningTask = Task.Run(ListenForUdpBroadcasts);
 
             // Запуск TCP-сервера
             _tcpListener = new TcpListener(new IPEndPoint(UserIP, DEFAULT_TCP_PORT));
             _tcpListener.Start();
-            _tcpListeningTask = Task.Run(ListenForTcpConnections);
+
+            _cancellationTokenSourceForListeners = new CancellationTokenSource();
+
+            _udpListeningTask = Task.Run(() => ListenForUdpBroadcasts(_cancellationTokenSourceForListeners.Token));
+            _tcpListeningTask = Task.Run(() => ListenForTcpConnections(_cancellationTokenSourceForListeners.Token));
 
             // Отправляем UDP-широковещательный пакет
             SendUDPBroadcastPacket();
@@ -146,12 +151,15 @@ namespace CatChat
             ViewUpdate();
         }
 
-        private async Task ListenForUdpBroadcasts()
+        private async Task ListenForUdpBroadcasts(CancellationToken cancelationToken)
         {
-            while (_isRunning)
+            UdpReceiveResult result;
+            cancelationToken.Register(() => StopChatAsync());
+
+            while (_isRunning && !cancelationToken.IsCancellationRequested)
             {
                 IPEndPoint remoteEndpoint = new IPEndPoint(IPAddress.Any, DEFAULT_UDP_PORT);
-                UdpReceiveResult result = await _udpClient.ReceiveAsync();
+                result = await _udpClient.ReceiveAsync();
 
                 if (result.RemoteEndPoint.Address.Equals(UserIP))
                     continue; // Игнорируем собственные пакеты
@@ -186,13 +194,16 @@ namespace CatChat
             _activeNodes[senderName] = tcpClient;
 
             // Запускаем задачу для чтения сообщений от этого узла
-            _activeMessageReaders.Add(senderName, Task.Run(() => ReadMessagesFromNode(senderName, tcpClient)));
-
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            CancellationToken token = cancellationTokenSource.Token;
+            _activeMessageReaders[senderName] = Task.Run(() => ReadMessagesFromNode(senderName, tcpClient, token));
+            _activeCancellationTokens[senderName] = cancellationTokenSource;
         }
 
-        private async Task ListenForTcpConnections()
+        private async Task ListenForTcpConnections(CancellationToken cancelationToken)
         {
-            while (_isRunning)
+            cancelationToken.Register(() => StopChatAsync());
+            while (_isRunning && !cancelationToken.IsCancellationRequested)
             {
                 TcpClient tcpClient = await _tcpListener.AcceptTcpClientAsync();
 
@@ -216,7 +227,10 @@ namespace CatChat
                         ViewUpdate();
 
                         // Запускаем задачу для чтения сообщений от узла
-                        _activeMessageReaders[senderName] = Task.Run(() => ReadMessagesFromNode(senderName, tcpClient));
+                        CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+                        CancellationToken token = cancellationTokenSource.Token;
+                        _activeMessageReaders[senderName] = Task.Run(() => ReadMessagesFromNode(senderName, tcpClient, token));
+                        _activeCancellationTokens[senderName] = cancellationTokenSource;
                     }
                 }
             }
@@ -229,6 +243,7 @@ namespace CatChat
             SendMessageToAll(message);
 
             _isRunning = false;
+            _cancellationTokenSourceForListeners.Dispose();
 
             // Дожидаемся завершения задач
             if (_udpListeningTask != null)  //прервать выполнение таски
@@ -251,21 +266,24 @@ namespace CatChat
             ViewUpdate();
         }
 
-
         private void DisconnectNode(string senderName)
         {
             if (_activeNodes.TryGetValue(senderName, out var client))
             {
                 client.Close();
                 _activeNodes.Remove(senderName);
+                _activeCancellationTokens[senderName].Cancel();
+                _activeMessageReaders.Remove(senderName);
+                _activeCancellationTokens.Remove(senderName);
             }
             ViewUpdate();
         }
 
-        private async Task ReadMessagesFromNode(string senderName, TcpClient tcpClient)
+        private async Task ReadMessagesFromNode(string senderName, TcpClient tcpClient, CancellationToken cancellationToken)
         {
             byte[] buffer = new byte[1024];
             NetworkStream stream = tcpClient.GetStream();
+            cancellationToken.Register(() => StopChatAsync());
 
             try
             {
@@ -303,6 +321,7 @@ namespace CatChat
             }
         }
 
+        //-------------------------------------------------------------------------------------
         private void SendMessageToAll(ChatMessage message)
         {
             foreach (var node in _activeNodes)
