@@ -111,16 +111,9 @@ namespace CatChat
             }
         }
 
-        private void SafeUpdateChat(string message)
+        private void UpdateChat(string message)
         {
-            if (tbChat.InvokeRequired)
-            {
-                tbChat.Invoke(new Action(() => tbChat.Text += message));
-            }
-            else
-            {
                 tbChat.Text += message;
-            }
         }
         private void SendUDPBroadcastPacket()
         {
@@ -291,7 +284,7 @@ namespace CatChat
                     {
                         case MessageType.Message:
                             LogUpdate(LogMessageType.MessageReceived, DateTime.Now, message.GetSenderIP(), senderName);
-                            SafeUpdateChat($"{senderName}: {message.GetMessage()}{NEW_LINE}");
+                            UpdateChat($"{senderName}: {message.GetMessage()}{NEW_LINE}");
                             break;
                         case MessageType.DisconnectionNotice:
                             LogUpdate(LogMessageType.NodeDisconnected, DateTime.Now, message.GetSenderIP(), message.GetMessage());
@@ -377,7 +370,7 @@ namespace CatChat
             {
                 ChatMessage message = new ChatMessage(MessageType.Message, UserIP, tbMessage.Text);
                 tbMessage.Text = "";
-                SafeUpdateChat($"{UserName}: {message.GetMessage()}{NEW_LINE}");
+                UpdateChat($"{UserName}: {message.GetMessage()}{NEW_LINE}");
                 SendMessageToAll(message);
             }
         }
