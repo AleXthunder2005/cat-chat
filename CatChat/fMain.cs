@@ -264,6 +264,7 @@ namespace CatChat
             _activeMessageReaders.Clear();
 
             ViewUpdate();
+            tbChat.Text = "";
         }
 
         private void DisconnectNode(string senderName)
@@ -380,7 +381,6 @@ namespace CatChat
         private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
         {
             StopChatAsync();
-            LogUpdate(LogMessageType.Disconnected, DateTime.Now, UserIP);
         }
 
         private void btnSend_Click(object sender, EventArgs e)
