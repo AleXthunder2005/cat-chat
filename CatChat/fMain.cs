@@ -262,10 +262,10 @@ namespace CatChat
             _cancellationTokenSourceForListeners.Dispose();
 
             // Дожидаемся завершения задач
-            if (_udpListeningTask != null)  //прервать выполнение таски
-                await _udpListeningTask;
-            if (_tcpListeningTask != null)
-                await _tcpListeningTask;
+            //if (_udpListeningTask != null)  //прервать выполнение таски
+            //    await _udpListeningTask;
+            //if (_tcpListeningTask != null)
+            //    await _tcpListeningTask;
 
             // Закрытие UDP и TCP сокетов
             //_udpClient?.Close();
@@ -276,6 +276,8 @@ namespace CatChat
             {
                 DisconnectNode(node.Key);  //там надо прервать выполнение таски
             }
+
+            _activeNodes.Clear();
 
             LogUpdate(LogMessageType.Disconnected, DateTime.Now, UserIP, UserName);
 
@@ -288,10 +290,11 @@ namespace CatChat
             if (_activeNodes.TryGetValue(senderName, out var client))
             {
                 client.Close();
-                _activeNodes.Remove(senderName);
                 _activeCancellationTokens[senderName].Cancel();
-                _activeMessageReaders.Remove(senderName);
+                _activeCancellationTokens[senderName].Dispose();
                 _activeCancellationTokens.Remove(senderName);
+                
+                _activeMessageReaders.Remove(senderName);
             }
             ViewUpdate();
         }
