@@ -33,10 +33,10 @@
             this.lbUsers = new System.Windows.Forms.ListBox();
             this.msMainMenu = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.conectionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.disconnectToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.miConnect = new System.Windows.Forms.ToolStripMenuItem();
+            this.miDisconnect = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripSeparator();
-            this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.miExit = new System.Windows.Forms.ToolStripMenuItem();
             this.tbLog = new System.Windows.Forms.TextBox();
             this.pChat = new System.Windows.Forms.Panel();
             this.tbChat = new System.Windows.Forms.TextBox();
@@ -105,39 +105,40 @@
             // fileToolStripMenuItem
             // 
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.conectionToolStripMenuItem,
-            this.disconnectToolStripMenuItem,
+            this.miConnect,
+            this.miDisconnect,
             this.toolStripMenuItem1,
-            this.exitToolStripMenuItem});
+            this.miExit});
             this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             this.fileToolStripMenuItem.Size = new System.Drawing.Size(46, 24);
             this.fileToolStripMenuItem.Text = "File";
             // 
-            // conectionToolStripMenuItem
+            // miConnect
             // 
-            this.conectionToolStripMenuItem.Name = "conectionToolStripMenuItem";
-            this.conectionToolStripMenuItem.Size = new System.Drawing.Size(165, 26);
-            this.conectionToolStripMenuItem.Text = "Connect";
-            this.conectionToolStripMenuItem.Click += new System.EventHandler(this.conectionToolStripMenuItem_Click);
+            this.miConnect.Name = "miConnect";
+            this.miConnect.Size = new System.Drawing.Size(224, 26);
+            this.miConnect.Text = "Connect";
+            this.miConnect.Click += new System.EventHandler(this.miConnect_Click);
             // 
-            // disconnectToolStripMenuItem
+            // miDisconnect
             // 
-            this.disconnectToolStripMenuItem.Name = "disconnectToolStripMenuItem";
-            this.disconnectToolStripMenuItem.Size = new System.Drawing.Size(165, 26);
-            this.disconnectToolStripMenuItem.Text = "Disconnect";
-            this.disconnectToolStripMenuItem.Click += new System.EventHandler(this.disconnectToolStripMenuItem_Click);
+            this.miDisconnect.Enabled = false;
+            this.miDisconnect.Name = "miDisconnect";
+            this.miDisconnect.Size = new System.Drawing.Size(224, 26);
+            this.miDisconnect.Text = "Disconnect";
+            this.miDisconnect.Click += new System.EventHandler(this.miDisconnect_Click);
             // 
             // toolStripMenuItem1
             // 
             this.toolStripMenuItem1.Name = "toolStripMenuItem1";
-            this.toolStripMenuItem1.Size = new System.Drawing.Size(162, 6);
+            this.toolStripMenuItem1.Size = new System.Drawing.Size(221, 6);
             // 
-            // exitToolStripMenuItem
+            // miExit
             // 
-            this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(165, 26);
-            this.exitToolStripMenuItem.Text = "Exit";
-            this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
+            this.miExit.Name = "miExit";
+            this.miExit.Size = new System.Drawing.Size(224, 26);
+            this.miExit.Text = "Exit";
+            this.miExit.Click += new System.EventHandler(this.miExit_Click);
             // 
             // tbLog
             // 
@@ -246,10 +247,10 @@
         private System.Windows.Forms.Panel pSide;
         private System.Windows.Forms.MenuStrip msMainMenu;
         private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem conectionToolStripMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem disconnectToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem miConnect;
+        private System.Windows.Forms.ToolStripMenuItem miDisconnect;
         private System.Windows.Forms.ToolStripSeparator toolStripMenuItem1;
-        private System.Windows.Forms.ToolStripMenuItem exitToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem miExit;
         private System.Windows.Forms.TextBox tbLog;
         private System.Windows.Forms.Panel pChat;
         private System.Windows.Forms.TextBox tbChat;

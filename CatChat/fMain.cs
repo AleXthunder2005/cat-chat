@@ -404,26 +404,31 @@ namespace CatChat
             CloseApplication();
         }
 
-        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        private void miExit_Click(object sender, EventArgs e)
         {
             CloseApplication();
         }
 
-        private void conectionToolStripMenuItem_Click(object sender, EventArgs e)
+        private void miConnect_Click(object sender, EventArgs e)
         {
             fAuthentificator authentificator = new fAuthentificator();
             if (authentificator.ShowDialog() == DialogResult.OK)
             {
                 InitializeUser(authentificator.UserName, authentificator.UserIP);
                 LogUpdate(LogMessageType.Connected, DateTime.Now, UserIP);
+                
+                miConnect.Enabled = _isRunning;
+                miDisconnect.Enabled = !_isRunning;
 
                 StartChat();
             }
         }
 
-        private void disconnectToolStripMenuItem_Click(object sender, EventArgs e)
+        private void miDisconnect_Click(object sender, EventArgs e)
         {
             StopChatAsync();
+            miConnect.Enabled = !_isRunning;
+            miDisconnect.Enabled = _isRunning;
         }
 
         private void btnSend_Click(object sender, EventArgs e)
